@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useRef, useCallback, useEffect, CSSProperties } from 'react';
@@ -127,10 +128,15 @@ export const EmojiTextarea: React.FC = () => {
       // Determine emoji frequency based on typing speed
       // More frequent if WPM is high
       let shouldShowEmoji = false;
-      if (currentWpm > 80) shouldShowEmoji = true; // Always show if very fast
-      else if (currentWpm > 50) shouldShowEmoji = (newText.length % 2 === 0); // every 2 chars
-      else if (currentWpm > 20) shouldShowEmoji = (newText.length % 3 === 0); // every 3 chars
-      else shouldShowEmoji = (newText.length % 4 === 0); // every 4 chars for slow typing
+      if (currentWpm > 80) {
+        shouldShowEmoji = true; // Always show if very fast
+      } else if (currentWpm > 50) {
+        shouldShowEmoji = (newText.length % 2 === 0); // every 2 chars
+      } else if (currentWpm > 20) {
+        shouldShowEmoji = (newText.length % 3 === 0); // every 3 chars
+      } else { // For WPM <= 20 (slow typing)
+        shouldShowEmoji = (newText.length % 2 === 0); // Changed from % 4 to % 2 for more frequent effects at slow speed
+      }
 
       if (shouldShowEmoji) {
         // Calculate caret position immediately *after* state update for text
@@ -254,3 +260,5 @@ export const EmojiTextarea: React.FC = () => {
     </TooltipProvider>
   );
 };
+
+    
