@@ -93,17 +93,22 @@ body {
     user-select: none;
     pointer-events: none;
     font-size: 1.2rem; /* Base size, can be overridden by style prop */
-    animation: floatUpAndFade var(--emoji-duration, 0.6s) var(--emoji-timing-function, cubic-bezier(0.175, 0.885, 0.32, 1.275)) forwards;
-    transform-origin: center bottom;
+    animation: emojiPopAnimation var(--emoji-duration, 0.7s) var(--emoji-timing-function, cubic-bezier(0.175, 0.885, 0.32, 1.275)) forwards;
+    transform-origin: center center; /* Changed for better rotation */
   }
 
-  @keyframes floatUpAndFade {
+  /* Renamed and updated animation */
+  @keyframes emojiPopAnimation {
     0% {
-      transform: translate(0, 0) scale(var(--emoji-initial-scale, 1));
+      transform: translate(var(--emoji-translate-x-start, 0px), var(--emoji-translate-y-start, 0px)) scale(var(--emoji-scale-start, 0.7)) rotate(var(--emoji-rotate-start, 0deg));
       opacity: 1;
     }
+    50% {
+      transform: translate(var(--emoji-translate-x-mid, 0px), var(--emoji-translate-y-mid, -40px)) scale(var(--emoji-scale-mid, 1.4)) rotate(var(--emoji-rotate-mid, -10deg));
+      opacity: 0.9;
+    }
     100% {
-      transform: translate(var(--emoji-final-x, 5px), var(--emoji-final-y, -25px)) scale(var(--emoji-final-scale, 1.3));
+      transform: translate(var(--emoji-translate-x-end, 5px), var(--emoji-translate-y-end, -70px)) scale(var(--emoji-scale-end, 0.3)) rotate(var(--emoji-rotate-end, 15deg));
       opacity: 0;
     }
   }
