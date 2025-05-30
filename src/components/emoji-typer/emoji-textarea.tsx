@@ -123,37 +123,21 @@ export const EmojiTextarea: React.FC = () => {
       const currentWpm = (charsInWindow / CHARS_FOR_WORD) / (timeSpanSeconds / 60);
       setWpm(Math.round(currentWpm));
       
-      const speedFactor = Math.min(1 + charsInWindow / 10, 2.5); // Max speedFactor of 2.5
+      // SpeedFactor determines animation intensity. Max speedFactor of 2.5
+      const speedFactor = Math.min(1 + charsInWindow / 10, 2.5); 
 
-      // Determine emoji frequency based on typing speed
-      // More frequent if WPM is high
-      let shouldShowEmoji = false;
-      if (currentWpm > 80) {
-        shouldShowEmoji = true; // Always show if very fast
-      } else if (currentWpm > 50) {
-        shouldShowEmoji = (newText.length % 2 === 0); // every 2 chars
-      } else if (currentWpm > 20) {
-        shouldShowEmoji = (newText.length % 3 === 0); // every 3 chars
-      } else { // For WPM <= 20 (slow typing)
-        shouldShowEmoji = (newText.length % 2 === 0); // Changed from % 4 to % 2 for more frequent effects at slow speed
-      }
+      // Always show emoji when a character is typed
+      const { x: caretX, y: caretY } = lastCaretPosRef.current;
 
-      if (shouldShowEmoji) {
-        // Calculate caret position immediately *after* state update for text
-        // but before browser re-renders. For this, we manually call it.
-        // It's better to schedule this with requestAnimationFrame or use a slight delay.
-        // For now, use the last known position which is updated onSelect/onKeyUp.
-        const { x: caretX, y: caretY } = lastCaretPosRef.current;
-
-        const newEmoji: EmojiState = {
-          id: `${Date.now()}-${Math.random()}`,
-          char: EMOJI_LIST[Math.floor(Math.random() * EMOJI_LIST.length)],
-          x: caretX + Math.random() * 20 - 10, // Add some jitter
-          y: caretY - 10 + Math.random() * 10 - 5,
-          speedFactor: speedFactor,
-        };
-        setEmojis(prev => [...prev, newEmoji].slice(-15)); // Limit max concurrent emojis
-      }
+      const newEmoji: EmojiState = {
+        id: `${Date.now()}-${Math.random()}`,
+        char: EMOJI_LIST[Math.floor(Math.random() * EMOJI_LIST.length)],
+        x: caretX + Math.random() * 20 - 10, // Add some jitter
+        y: caretY - 10 + Math.random() * 10 - 5,
+        speedFactor: speedFactor,
+      };
+      setEmojis(prev => [...prev, newEmoji].slice(-15)); // Limit max concurrent emojis
+      
     } else { // Text deleted or no change in length
       if (newText.length === 0) { // Cleared text
         charTypedTimesRef.current = [];
@@ -260,5 +244,3 @@ export const EmojiTextarea: React.FC = () => {
     </TooltipProvider>
   );
 };
-
-    
