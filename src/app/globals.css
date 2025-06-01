@@ -89,7 +89,7 @@ body {
 }
 
 @layer utilities {
-  .emoji-particle { /* This class name is still used in CSS, but JS uses it for the div wrapper */
+  .emoji-particle-gif { /* Changed from .emoji-particle to .emoji-particle-gif */
     position: absolute;
     user-select: none;
     pointer-events: none;
@@ -107,17 +107,20 @@ body {
 
   @keyframes emojiPopAnimation {
     0% {
-      transform: translate(var(--emoji-translate-x-start, 0px), var(--emoji-translate-y-start, 0px)) scale(var(--emoji-scale-start, 0.7)) rotate(var(--emoji-rotate-start, 0deg));
+      transform: translate(var(--emoji-translate-x-start, 0px), var(--emoji-translate-y-start, 0px)) scale(var(--emoji-scale-start, 0.5)) rotate(var(--emoji-rotate-start, 0deg));
       opacity: 1;
     }
-    50% {
-      transform: translate(var(--emoji-translate-x-mid, 0px), var(--emoji-translate-y-mid, -40px)) scale(var(--emoji-scale-mid, 1.4)) rotate(var(--emoji-rotate-mid, -10deg));
+    25% {
+      transform: translate(var(--emoji-translate-x-mid, 0px), calc(var(--emoji-translate-y-mid, -40px) * 0.5)) scale(var(--emoji-scale-mid, 1.2)) rotate(var(--emoji-rotate-mid, -5deg));
       opacity: 0.9;
     }
+    50% {
+      transform: translate(var(--emoji-translate-x-mid, 0px), var(--emoji-translate-y-mid, -60px)) scale(var(--emoji-scale-mid, 1.0)) rotate(var(--emoji-rotate-mid, 5deg));
+      opacity: 0.8;
+    }
     100% {
-      transform: translate(var(--emoji-translate-x-end, 5px), var(--emoji-translate-y-end, -70px)) scale(var(--emoji-scale-end, 0.3)) rotate(var(--emoji-rotate-end, 15deg));
+      transform: translate(var(--emoji-translate-x-end, 5px), var(--emoji-translate-y-end, -80px)) scale(var(--emoji-scale-end, 0.1)) rotate(var(--emoji-rotate-end, 10deg));
       opacity: 0;
     }
   }
 }
-

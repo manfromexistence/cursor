@@ -7,6 +7,7 @@ import { EmojiParticle } from './emoji-particle';
 import { Button } from '@/components/ui/button';
 import { RefreshCwIcon, InfoIcon } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import getCaretCoordinates from 'textarea-caret';
 import {
     atomExplosion1,
     atomExplosion2,
@@ -23,22 +24,34 @@ import {
     horizontalRift,
     space1,
     space2,
+    clippy
+} from '@/app/data';
+
+const TYPING_GIFS = [
+    magic,
     flame,
     sparkles,
     threeColorfulFireworks,
     threeColorfulFireworks2,
-    clippy
-} from '@/app/data';
-
-const GIF_EFFECT_LIST = [
-    atomExplosion1, atomExplosion2, atomExplosion3, atomExplosion4, atomExplosion5,
-    atomExplosion6, atomExplosion7, atomExplosion8, atomExplosion9, atomExplosion10,
-    magic, verticalRift, horizontalRift, space1, space2, flame, sparkles,
-    threeColorfulFireworks, threeColorfulFireworks2, clippy
+    atomExplosion1,
+    atomExplosion2,
+    atomExplosion3,
+    atomExplosion4,
+    atomExplosion5,
+    atomExplosion6,
+    atomExplosion7,
+    atomExplosion8,
+    atomExplosion9,
+    atomExplosion10,
 ];
+const SPACE_GIFS = [space1, space2];
+const BACKSPACE_GIF = clippy;
+const GAP_GIFS = [verticalRift, horizontalRift];
 
-const TYPING_SPEED_WINDOW_MS = 2000; // Calculate speed over the last 2 seconds
-const CHARS_FOR_WORD = 5; // Standard characters per word for WPM
+const TYPING_SPEED_WINDOW_MS = 2000; 
+const CHARS_FOR_WORD = 5; 
+const BASE_GIF_SIZE = 40;
+const GAP_TIMEOUT_MS = 1500; // 1.5 seconds for a gap
 
 interface EffectState {
   id: string;
@@ -48,128 +61,151 @@ interface EffectState {
   speedFactor: number;
 }
 
-const MIRROR_STYLES: (keyof CSSStyleDeclaration)[] = [
-  'fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'letterSpacing',
-  'lineHeight', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
-  'borderTopWidth', 'borderRightWidth', 'borderBottomWidth', 'borderLeftWidth',
-  'width', 'boxSizing', 'whiteSpace', 'wordWrap', 'wordBreak', 'textAlign', 'textIndent'
-];
-
 export const EmojiTextarea: React.FC = () => {
   const [text, setText] = useState('');
   const [effects, setEffects] = useState<EffectState[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const measurementDivRef = useRef<HTMLDivElement>(null);
-  const lastCaretPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
-  const charTypedTimesRef = useRef<number[]>([]);
+  const typingGifIndexRef = useRef(0);
+  const gapTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastInputTimeRef = useRef(Date.now());
   const [wpm, setWpm] = useState(0);
   const [charCount, setCharCount] = useState(0);
-  
-  const copyStyles = useCallback(() => {
-    if (textareaRef.current && measurementDivRef.current) {
-      const textareaStyles = window.getComputedStyle(textareaRef.current);
-      MIRROR_STYLES.forEach(prop => {
-        if (measurementDivRef.current) {
-          measurementDivRef.current.style[prop as any] = textareaStyles[prop];
-        }
-      });
-      if (measurementDivRef.current) {
-        measurementDivRef.current.style.height = 'auto'; 
-        measurementDivRef.current.style.minHeight = textareaStyles.height;
-      }
-    }
-  }, []);
-
-  useEffect(() => {
-    copyStyles();
-    window.addEventListener('resize', copyStyles);
-    return () => window.removeEventListener('resize', copyStyles);
-  }, [copyStyles]);
-
+  const charTypedTimesRef = useRef<number[]>([]);
+  const lastCaretPositionRef = useRef({ x: 0, y: 0 });
 
   const calculateCaretPosition = useCallback(() => {
-    if (!textareaRef.current || !measurementDivRef.current) return { x: 0, y: 0 };
-
-    const textarea = textareaRef.current;
-    const measurementDiv = measurementDivRef.current;
-    const selectionEnd = textarea.selectionEnd;
-
-    const textBeforeCaret = text.substring(0, selectionEnd);
-    
-    measurementDiv.innerHTML = ''; 
-    const textNode = document.createTextNode(textBeforeCaret);
-    const spanMarker = document.createElement('span');
-    measurementDiv.appendChild(textNode);
-    measurementDiv.appendChild(spanMarker);
-
-    const textareaRect = textarea.getBoundingClientRect();
-    const markerRect = spanMarker.getBoundingClientRect();
-    const measurementDivRect = measurementDiv.getBoundingClientRect();
-
-    const x = (markerRect.left - measurementDivRect.left) + textarea.scrollLeft;
-    const y = (markerRect.top - measurementDivRect.top) + (markerRect.height / 2) + textarea.scrollTop;
-    
-    measurementDiv.innerHTML = ''; 
-
-    if (isFinite(x) && isFinite(y)) {
-      lastCaretPosRef.current = { x, y };
-      return { x, y };
+    if (textareaRef.current) {
+      const { top, left } = getCaretCoordinates(textareaRef.current, textareaRef.current.selectionEnd);
+      // Adjust for textarea's own padding and border if necessary, or use client coordinates
+      const rect = textareaRef.current.getBoundingClientRect();
+      // Ensure the position is relative to the viewport if the textarea is inside other positioned elements
+      return { x: left + textareaRef.current.offsetLeft, y: top + textareaRef.current.offsetTop };
     }
-    return lastCaretPosRef.current; 
-  }, [text]);
+    return { x: 0, y: 0 }; // Default if ref not available
+  }, []);
+
+  const calculateSpeedFactor = (): number => {
+    const currentTime = performance.now();
+    const recentPresses = charTypedTimesRef.current.filter(time => currentTime - time <= TYPING_SPEED_WINDOW_MS);
+    const cps = recentPresses.length / (TYPING_SPEED_WINDOW_MS / 1000);
+    let factor = cps / 5; // Normalize around 5 CPS
+    factor = Math.max(0.2, Math.min(2.5, factor)); // Clamp between 0.2 and 2.5
+    return factor;
+  };
+  
+  const addEffect = (dataUri: string, caretX: number, caretY: number, speedFactor: number) => {
+    const textareaElem = textareaRef.current;
+    if (!textareaElem) return;
+
+    const effectSize = BASE_GIF_SIZE * (0.5 + speedFactor * 0.5);
+    let effectX = caretX;
+    let effectY = caretY;
+    
+    const textareaRect = textareaElem.getBoundingClientRect();
+    const textareaScrollTop = textareaElem.scrollTop;
+
+    // Adjust for scroll position
+    effectY -= textareaScrollTop;
+
+    // Ensure the effect appears above the cursor if it's in the lower half
+    const visibleTextareaHeight = textareaElem.clientHeight;
+    if (caretY > visibleTextareaHeight / 2) {
+      effectY -= effectSize; // Spawn above
+    }
+
+    // Keep within bounds (approximately)
+    effectX = Math.max(0, Math.min(effectX, textareaElem.clientWidth - effectSize));
+    effectY = Math.max(0, Math.min(effectY, textareaElem.clientHeight - effectSize));
+
+
+    const newEffect: EffectState = {
+      id: `${Date.now()}-${Math.random()}`,
+      dataUri: dataUri,
+      x: effectX,
+      y: effectY,
+      speedFactor: speedFactor,
+    };
+    setEffects(prev => [...prev.slice(-19), newEffect]); // Keep max 20 effects
+  };
+  
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (gapTimerRef.current) {
+      clearTimeout(gapTimerRef.current);
+    }
+    lastInputTimeRef.current = Date.now();
+
+    if (textareaRef.current) {
+      const { x, y } = getCaretPositionInTextarea();
+      lastCaretPositionRef.current = { x, y }; // Update last known caret position
+      const speedFactor = calculateSpeedFactor();
+
+      if (e.key === 'Backspace') {
+        if (text.length > 0 && textareaRef.current.selectionStart > 0) {
+          addEffect(BACKSPACE_GIF, x, y, speedFactor);
+        }
+      }
+    }
+  };
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newText = e.target.value;
-    const prevTextLength = text.length;
+    const prevText = text;
     setText(newText);
     setCharCount(newText.length);
 
     const currentTime = performance.now();
 
-    if (newText.length > prevTextLength) { 
+    if (newText.length > prevText.length) { // Character added
       charTypedTimesRef.current.push(currentTime);
-      
-      charTypedTimesRef.current = charTypedTimesRef.current.filter(
-        time => currentTime - time <= TYPING_SPEED_WINDOW_MS
-      );
+    }
 
-      const charsInWindow = charTypedTimesRef.current.length;
-      const timeSpanSeconds = TYPING_SPEED_WINDOW_MS / 1000;
-      
-      const currentWpm = (charsInWindow / CHARS_FOR_WORD) / (timeSpanSeconds / 60);
-      setWpm(Math.round(currentWpm));
-      
-      const speedFactor = Math.min(1 + charsInWindow / 10, 2.5); 
+    charTypedTimesRef.current = charTypedTimesRef.current.filter(
+      (time) => currentTime - time <= TYPING_SPEED_WINDOW_MS
+    );
 
-      const { x: caretX, y: caretY } = lastCaretPosRef.current;
+    const speedFactor = calculateSpeedFactor();
+    const { x: caretX, y: caretY } = getCaretPositionInTextarea();
+    lastCaretPositionRef.current = { x: caretX, y: caretY }; // Update on every change for accuracy
 
-        const newEffect: EffectState = {
-          id: `${Date.now()}-${Math.random()}`,
-          dataUri: GIF_EFFECT_LIST[Math.floor(Math.random() * GIF_EFFECT_LIST.length)],
-          x: caretX + Math.random() * 20 - 10, 
-          y: caretY - 20 + Math.random() * 10 - 5,
-          speedFactor: speedFactor,
-        };
-        setEffects(prev => [...prev, newEffect].slice(-10)); 
-      
-    } else { 
-      if (newText.length === 0) { 
-        charTypedTimesRef.current = [];
-        setWpm(0);
+    let gifToUse: string | null = null;
+
+    if (newText.length > prevText.length) { // Character added
+      const charTyped = newText.slice(prevText.length);
+      if (charTyped === ' ') { // Spacebar pressed
+        gifToUse = SPACE_GIFS[Math.floor(Math.random() * SPACE_GIFS.length)];
+      } else { // Regular character
+        gifToUse = TYPING_GIFS_LIST[typingGifIndexRef.current % TYPING_GIFS_LIST.length];
+        typingGifIndexRef.current = (typingGifIndexRef.current + 1);
       }
     }
-  };
-  
-  const handleSelectionEvents = () => {
-    requestAnimationFrame(() => {
-      calculateCaretPosition();
-    });
-  };
+    
+    if (gifToUse) {
+      addEffect(gifToUse, caretX, caretY, speedFactor);
+    }
 
-  useEffect(() => {
-    calculateCaretPosition();
-  }, [text, calculateCaretPosition]);
+    // WPM calculation
+    if (newText.length === 0) {
+      charTypedTimesRef.current = [];
+      setWpm(0);
+    } else {
+      const charsInWindow = charTypedTimesRef.current.length;
+      const timeSpanSeconds = TYPING_SPEED_WINDOW_MS / 1000;
+      const currentWpm = Math.max(0, (charsInWindow / CHARS_FOR_WORD) / (timeSpanSeconds / 60)); // Ensure WPM is not negative
+      setWpm(Math.round(currentWpm));
+    }
 
+    // Gap timer
+    if (gapTimerRef.current) {
+      clearTimeout(gapTimerRef.current);
+    }
+    gapTimerRef.current = setTimeout(() => {
+      if (textareaRef.current && document.activeElement === textareaRef.current && textareaRef.current.value.length > 0 && (Date.now() - lastInputTimeRef.current >= GAP_TIMEOUT_MS)) {
+        const { x, y } = lastCaretPositionRef.current; // Use the last known caret position
+        const currentSpeedFactor = calculateSpeedFactor(); 
+        addEffect(GAP_GIFS[Math.floor(Math.random() * GAP_GIFS.length)], x, y, currentSpeedFactor);
+      }
+    }, GAP_TIMEOUT_MS); 
+  };
 
   const removeEffect = useCallback((id: string | number) => {
     setEffects(prev => prev.filter(effect => effect.id !== id));
@@ -185,6 +221,32 @@ export const EmojiTextarea: React.FC = () => {
       textareaRef.current.focus();
     }
   };
+  
+  const handleSelectionEvents = useCallback(() => {
+    if (textareaRef.current) {
+        const { x, y } = getCaretCoordinates(textareaRef.current, textareaRef.current.selectionEnd);
+        // Adjust for textarea's own padding and border if necessary, or use client coordinates
+        const rect = textareaRef.current.getBoundingClientRect();
+        lastCaretPositionRef.current = { x: left + textareaRef.current.offsetLeft, y: top + textareaRef.current.offsetTop };
+    }
+  }, []);
+
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.addEventListener('select', handleSelectionEvents);
+      textarea.addEventListener('focus', handleSelectionEvents);
+      textarea.addEventListener('click', handleSelectionEvents); // For good measure
+    }
+    return () => {
+      if (textarea) {
+        textarea.removeEventListener('select', handleSelectionEvents);
+        textarea.removeEventListener('focus', handleSelectionEvents);
+        textarea.removeEventListener('click', handleSelectionEvents);
+      }
+    };
+  }, [handleSelectionEvents]);
+
 
   return (
     <TooltipProvider>
@@ -217,32 +279,20 @@ export const EmojiTextarea: React.FC = () => {
         ref={textareaRef}
         value={text}
         onChange={handleTextChange}
-        onSelect={handleSelectionEvents} 
+        onKeyDown={handleKeyDown} 
+        onSelect={handleSelectionEvents}  
         onKeyUp={handleSelectionEvents}  
-        onClick={handleSelectionEvents}  
-        onFocus={handleSelectionEvents} 
+        onClick={handleSelectionEvents} 
         placeholder="Start typing here..."
         className="w-full h-72 sm:h-80 md:h-96 p-4 text-base sm:text-lg rounded-md shadow-inner resize-none focus:ring-2 focus:ring-primary transition-shadow duration-200"
         style={{ whiteSpace: 'pre-wrap', wordWrap: 'break-word' }}
       />
-      <div
-        ref={measurementDivRef}
-        aria-hidden="true"
-        style={{
-          position: 'absolute',
-          top: '0', 
-          left: '0',
-          visibility: 'hidden',
-          pointerEvents: 'none',
-          whiteSpace: 'pre-wrap', 
-          wordWrap: 'break-word',   
-        }}
-      />
+      {/* Removed measurementDivRef as textarea-caret handles this internally */}
       {effects.map(effect => (
         <EmojiParticle
           key={effect.id}
           id={effect.id}
-          imageDataUri={effect.dataUri}
+          dataUri={effect.dataUri}
           x={effect.x}
           y={effect.y}
           speedFactor={effect.speedFactor}
