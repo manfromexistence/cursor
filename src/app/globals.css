@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -88,16 +89,22 @@ body {
 }
 
 @layer utilities {
-  .emoji-particle {
+  .emoji-particle { /* This class name is still used in CSS, but JS uses it for the div wrapper */
     position: absolute;
     user-select: none;
     pointer-events: none;
-    font-size: 1.2rem; /* Base size, can be overridden by style prop */
+    /* font-size is removed as we now control size via width/height for images */
     animation: emojiPopAnimation var(--emoji-duration, 0.7s) var(--emoji-timing-function, cubic-bezier(0.175, 0.885, 0.32, 1.275)) forwards;
-    transform-origin: center center; /* Changed for better rotation */
+    transform-origin: center center; 
+  }
+  
+  .emoji-particle-gif img { /* Ensures images within the particle div behave as expected */
+    display: block;
+    width: 100%;
+    height: 100%;
   }
 
-  /* Renamed and updated animation */
+
   @keyframes emojiPopAnimation {
     0% {
       transform: translate(var(--emoji-translate-x-start, 0px), var(--emoji-translate-y-start, 0px)) scale(var(--emoji-scale-start, 0.7)) rotate(var(--emoji-rotate-start, 0deg));
@@ -113,3 +120,4 @@ body {
     }
   }
 }
+

@@ -7,14 +7,42 @@ import { EmojiParticle } from './emoji-particle';
 import { Button } from '@/components/ui/button';
 import { RefreshCwIcon, InfoIcon } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import {
+    atomExplosion1,
+    atomExplosion2,
+    atomExplosion3,
+    atomExplosion4,
+    atomExplosion5,
+    atomExplosion6,
+    atomExplosion7,
+    atomExplosion8,
+    atomExplosion9,
+    atomExplosion10,
+    magic,
+    verticalRift,
+    horizontalRift,
+    space1,
+    space2,
+    flame,
+    sparkles,
+    threeColorfulFireworks,
+    threeColorfulFireworks2,
+    clippy
+} from '@/app/data';
 
-const EMOJI_LIST = ['🎉', '✨', '🚀', '💥', '💖', '🔥', '💫', '🌟', '🎈', '💯', '🥳', '🤩', '🤯', '👍', '💪'];
+const GIF_EFFECT_LIST = [
+    atomExplosion1, atomExplosion2, atomExplosion3, atomExplosion4, atomExplosion5,
+    atomExplosion6, atomExplosion7, atomExplosion8, atomExplosion9, atomExplosion10,
+    magic, verticalRift, horizontalRift, space1, space2, flame, sparkles,
+    threeColorfulFireworks, threeColorfulFireworks2, clippy
+];
+
 const TYPING_SPEED_WINDOW_MS = 2000; // Calculate speed over the last 2 seconds
 const CHARS_FOR_WORD = 5; // Standard characters per word for WPM
 
-interface EmojiState {
+interface EffectState {
   id: string;
-  char: string;
+  dataUri: string;
   x: number;
   y: number;
   speedFactor: number;
@@ -29,7 +57,7 @@ const MIRROR_STYLES: (keyof CSSStyleDeclaration)[] = [
 
 export const EmojiTextarea: React.FC = () => {
   const [text, setText] = useState('');
-  const [emojis, setEmojis] = useState<EmojiState[]>([]);
+  const [effects, setEffects] = useState<EffectState[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const measurementDivRef = useRef<HTMLDivElement>(null);
   const lastCaretPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -46,7 +74,7 @@ export const EmojiTextarea: React.FC = () => {
         }
       });
       if (measurementDivRef.current) {
-        measurementDivRef.current.style.height = 'auto'; // Allow it to grow
+        measurementDivRef.current.style.height = 'auto'; 
         measurementDivRef.current.style.minHeight = textareaStyles.height;
       }
     }
@@ -54,7 +82,6 @@ export const EmojiTextarea: React.FC = () => {
 
   useEffect(() => {
     copyStyles();
-    // Optional: Recopy styles on resize if textarea width could change
     window.addEventListener('resize', copyStyles);
     return () => window.removeEventListener('resize', copyStyles);
   }, [copyStyles]);
@@ -67,15 +94,11 @@ export const EmojiTextarea: React.FC = () => {
     const measurementDiv = measurementDivRef.current;
     const selectionEnd = textarea.selectionEnd;
 
-    // Ensure styles are current (they might change if textarea resizes etc)
-    // copyStyles(); // Can be performance intensive, called on mount and resize for now
-
     const textBeforeCaret = text.substring(0, selectionEnd);
     
-    measurementDiv.innerHTML = ''; // Clear previous
+    measurementDiv.innerHTML = ''; 
     const textNode = document.createTextNode(textBeforeCaret);
     const spanMarker = document.createElement('span');
-    // The marker helps to get the position at the end of the text
     measurementDiv.appendChild(textNode);
     measurementDiv.appendChild(spanMarker);
 
@@ -83,21 +106,16 @@ export const EmojiTextarea: React.FC = () => {
     const markerRect = spanMarker.getBoundingClientRect();
     const measurementDivRect = measurementDiv.getBoundingClientRect();
 
-    // Position relative to textarea's content area, accounting for scroll
-    // markerRect.left is relative to viewport, so subtract measurementDivRect.left (which should be same as textareaRect.left if aligned)
-    // Add scrollLeft to get position within the scrollable content
     const x = (markerRect.left - measurementDivRect.left) + textarea.scrollLeft;
-    // markerRect.bottom gives y-pos for baseline of line with caret. Adjust to be near caret.
-    // (markerRect.top + markerRect.height / 2) - measurementDivRect.top gives y-center of marker relative to measurementDiv
     const y = (markerRect.top - measurementDivRect.top) + (markerRect.height / 2) + textarea.scrollTop;
     
-    measurementDiv.innerHTML = ''; // Clean up
+    measurementDiv.innerHTML = ''; 
 
     if (isFinite(x) && isFinite(y)) {
       lastCaretPosRef.current = { x, y };
       return { x, y };
     }
-    return lastCaretPosRef.current; // Return last known good position
+    return lastCaretPosRef.current; 
   }, [text]);
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -108,10 +126,9 @@ export const EmojiTextarea: React.FC = () => {
 
     const currentTime = performance.now();
 
-    if (newText.length > prevTextLength) { // Character typed (not deleted)
+    if (newText.length > prevTextLength) { 
       charTypedTimesRef.current.push(currentTime);
       
-      // Filter timestamps outside the TYPING_SPEED_WINDOW_MS
       charTypedTimesRef.current = charTypedTimesRef.current.filter(
         time => currentTime - time <= TYPING_SPEED_WINDOW_MS
       );
@@ -119,56 +136,48 @@ export const EmojiTextarea: React.FC = () => {
       const charsInWindow = charTypedTimesRef.current.length;
       const timeSpanSeconds = TYPING_SPEED_WINDOW_MS / 1000;
       
-      // Calculate WPM
       const currentWpm = (charsInWindow / CHARS_FOR_WORD) / (timeSpanSeconds / 60);
       setWpm(Math.round(currentWpm));
       
-      // SpeedFactor determines animation intensity. Max speedFactor of 2.5
       const speedFactor = Math.min(1 + charsInWindow / 10, 2.5); 
 
-      // Always show emoji when a character is typed
       const { x: caretX, y: caretY } = lastCaretPosRef.current;
 
-      const newEmoji: EmojiState = {
-        id: `${Date.now()}-${Math.random()}`,
-        char: EMOJI_LIST[Math.floor(Math.random() * EMOJI_LIST.length)],
-        x: caretX + Math.random() * 20 - 10, // Add some jitter
-        y: caretY - 10 + Math.random() * 10 - 5,
-        speedFactor: speedFactor,
-      };
-      setEmojis(prev => [...prev, newEmoji].slice(-15)); // Limit max concurrent emojis
+        const newEffect: EffectState = {
+          id: `${Date.now()}-${Math.random()}`,
+          dataUri: GIF_EFFECT_LIST[Math.floor(Math.random() * GIF_EFFECT_LIST.length)],
+          x: caretX + Math.random() * 20 - 10, 
+          y: caretY - 20 + Math.random() * 10 - 5,
+          speedFactor: speedFactor,
+        };
+        setEffects(prev => [...prev, newEffect].slice(-10)); 
       
-    } else { // Text deleted or no change in length
-      if (newText.length === 0) { // Cleared text
+    } else { 
+      if (newText.length === 0) { 
         charTypedTimesRef.current = [];
         setWpm(0);
       }
     }
   };
   
-  // Update caret position on selection change or key up
   const handleSelectionEvents = () => {
-    // Using requestAnimationFrame to ensure calculations happen after DOM updates
     requestAnimationFrame(() => {
       calculateCaretPosition();
     });
   };
 
   useEffect(() => {
-    // This effect ensures calculateCaretPosition is called after text state updates and DOM reflects it.
-    // However, for immediate emoji placement, lastCaretPosRef.current is used.
-    // This effect primarily keeps lastCaretPosRef.current up-to-date.
     calculateCaretPosition();
   }, [text, calculateCaretPosition]);
 
 
-  const removeEmoji = useCallback((id: string | number) => {
-    setEmojis(prev => prev.filter(emoji => emoji.id !== id));
+  const removeEffect = useCallback((id: string | number) => {
+    setEffects(prev => prev.filter(effect => effect.id !== id));
   }, []);
 
   const handleClearText = () => {
     setText('');
-    setEmojis([]);
+    setEffects([]);
     setWpm(0);
     setCharCount(0);
     charTypedTimesRef.current = [];
@@ -208,9 +217,9 @@ export const EmojiTextarea: React.FC = () => {
         ref={textareaRef}
         value={text}
         onChange={handleTextChange}
-        onSelect={handleSelectionEvents} // Covers mouse selection, keyboard navigation
-        onKeyUp={handleSelectionEvents}  // Covers keyboard input that moves caret
-        onClick={handleSelectionEvents}  // Covers clicks that move caret
+        onSelect={handleSelectionEvents} 
+        onKeyUp={handleSelectionEvents}  
+        onClick={handleSelectionEvents}  
         onFocus={handleSelectionEvents} 
         placeholder="Start typing here..."
         className="w-full h-72 sm:h-80 md:h-96 p-4 text-base sm:text-lg rounded-md shadow-inner resize-none focus:ring-2 focus:ring-primary transition-shadow duration-200"
@@ -221,23 +230,23 @@ export const EmojiTextarea: React.FC = () => {
         aria-hidden="true"
         style={{
           position: 'absolute',
-          top: '0', // Aligned with textarea wrapper for correct offset calculations
+          top: '0', 
           left: '0',
           visibility: 'hidden',
           pointerEvents: 'none',
-          whiteSpace: 'pre-wrap', // Match textarea
-          wordWrap: 'break-word',   // Match textarea
+          whiteSpace: 'pre-wrap', 
+          wordWrap: 'break-word',   
         }}
       />
-      {emojis.map(emoji => (
+      {effects.map(effect => (
         <EmojiParticle
-          key={emoji.id}
-          id={emoji.id}
-          char={emoji.char}
-          x={emoji.x}
-          y={emoji.y}
-          speedFactor={emoji.speedFactor}
-          onComplete={removeEmoji}
+          key={effect.id}
+          id={effect.id}
+          imageDataUri={effect.dataUri}
+          x={effect.x}
+          y={effect.y}
+          speedFactor={effect.speedFactor}
+          onComplete={removeEffect}
         />
       ))}
     </div>
